@@ -1,0 +1,328 @@
+﻿
+@model MyWeb.ViewModels.UserListViewModel
+@using MyWeb.Helpers
+@{
+    ViewData["Title"] = "User Management";
+}
+
+<div class="container mt-4">
+    <h1>@ViewData["Title"]</h1>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Filters Section -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h5>Filters & Search</h5>
+        </div>
+        <div class="card-body">
+            <form method="get" asp-action="Index" id="filterForm">
+                <div class="row g-3">
+                    <!-- Search -->
+                    <div class="col-md-3">
+                        <label for="searchTerm" class="form-label">Search</label>
+                        <input type="text" class="form-control" id="searchTerm" name="searchTerm"
+                               value="@Model.SearchTerm" placeholder="Username, email, name...">
+                    </div>
+
+                    <!-- Status Filter -->
+                    <div class="col-md-2">
+                        <label for="statusFilter" class="form-label">Status</label>
+                        <select class="form-select select2-multiple" id="statusFilter" name="statusFilter" multiple>
+                            @if (Model.StatusFilter?.Contains("active") == true)
+                            {
+                                <option value="active" selected>Active</option>
+                            }
+                            else
+                            {
+                                <option value="active">Active</option>
+                            }
+
+                            @if (Model.StatusFilter?.Contains("inactive") == true)
+                            {
+                                <option value="inactive" selected>Inactive</option>
+                            }
+                            else
+                            {
+                                <option value="inactive">Inactive</option>
+                            }
+                        </select>
+                    </div>
+
+                    <!-- Role Filter -->
+                    <div class="col-md-2">
+                        <label for="roleFilter" class="form-label">Role</label>
+                        <select class="form-select select2-multiple" id="roleFilter" name="roleFilter" multiple>
+                            @foreach (var role in Model.AvailableRoles)
+                            {
+                                if (Model.RoleFilter?.Contains(role) == true)
+                                {
+                                    <option value="@role" selected>@role</option>
+                                }
+                                else
+                                {
+                                    <option value="@role">@role</option>
+                                }
+                            }
+                        </select>
+                    </div>
+
+                    <!-- Department Filter -->
+                    <div class="col-md-2">
+                        <label for="departmentFilter" class="form-label">Department</label>
+                        <select class="form-select select2-multiple" id="departmentFilter" name="departmentFilter" multiple>
+                            @foreach (var dept in Model.AvailableDepartments)
+                            {
+                                if (Model.DepartmentFilter?.Contains(dept) == true)
+                                {
+                                    <option value="@dept" selected>@dept</option>
+                                }
+                                else
+                                {
+                                    <option value="@dept">@dept</option>
+                                }
+                            }
+                        </select>
+                    </div>
+
+                    <!-- Page Size -->
+                    <div class="col-md-1">
+                        <label for="pageSize" class="form-label">Per Page</label>
+                        <select class="form-select" id="pageSize" name="pageSize" onchange="this.form.submit()">
+                            <option value="10" selected="@(Model.PageSize == 10)">10</option>
+                            <option value="25" selected="@(Model.PageSize == 25)">25</option>
+                            <option value="50" selected="@(Model.PageSize == 50)">50</option>
+                            <option value="100" selected="@(Model.PageSize == 100)">100</option>
+                        </select>
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary me-2">
+                            <i class="bi bi-search"></i> Filter
+                        </button>
+                        <a href="@Url.Action("Index")" class="btn btn-secondary">
+                            <i class="bi bi-x-circle"></i> Clear
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Hidden fields for sorting -->
+                <input type="hidden" name="sortBy" value="@Model.SortBy" />
+                <input type="hidden" name="sortOrder" value="@Model.SortOrder" />
+            </form>
+        </div>
+    </div>
+
+    <!-- Results Info -->
+    <div class="alert alert-info">
+        Showing @Model.StartRecord - @Model.EndRecord of @Model.TotalUsers users
+    </div>
+
+    <!-- Users Table -->
+    <div class="card">
+        <div class="card-header">
+            <h5>All Users</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th><a href="@GetSortUrl("UserName")">Username @GetSortIcon("UserName")</a></th>
+                            <th><a href="@GetSortUrl("FullName")">Full Name @GetSortIcon("FullName")</a></th>
+                            <th><a href="@GetSortUrl("Email")">Email @GetSortIcon("Email")</a></th>
+                            <th><a href="@GetSortUrl("Department")">Department @GetSortIcon("Department")</a></th>
+                            <th><a href="@GetSortUrl("IsActive")">Status @GetSortIcon("IsActive")</a></th>
+                            <th>Roles</th>
+                            <th><a href="@GetSortUrl("CreatedDate")">Created Date (ET) @GetSortIcon("CreatedDate")</a></th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Users.Any())
+                        {
+                            @foreach (var user in Model.Users)
+                            {
+                                <tr>
+                                    <td>@user.UserName</td>
+                                    <td>@user.FullName</td>
+                                    <td>@user.Email</td>
+                                    <td>
+                                        @if (user.Departments != null && user.Departments.Any())
+                                        {
+                                            @foreach (var dept in user.Departments)
+                                            {
+                                                <span class="badge bg-secondary">@dept</span>
+                                            }
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (user.IsActive)
+                                        {
+                                            <span class="badge bg-success">Active</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">Inactive</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @foreach (var role in user.Roles)
+                                        {
+                                            <span class="badge bg-primary">@role</span>
+                                        }
+                                    </td>
+                                    <td>@user.CreatedDate.ToEasternTimeString("MM/dd/yyyy")</td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a asp-action="Edit" asp-route-id="@user.Id" class="btn btn-sm btn-primary">Edit</a>
+                                            <a asp-controller="Audit" asp-action="Index" asp-route-userId="@user.Id" class="btn btn-sm btn-info">Logs</a>
+
+                                            @if (user.IsActive)
+                                            {
+                                                <form asp-action="Deactivate" asp-route-id="@user.Id" method="post" style="display: inline;" onsubmit="return confirm('Are you sure you want to deactivate this user?');">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-sm btn-warning">Deactivate</button>
+                                                </form>
+                                            }
+                                            else
+                                            {
+                                                <form asp-action="Reactivate" asp-route-id="@user.Id" method="post" style="display: inline;" onsubmit="return confirm('Are you sure you want to reactivate this user?');">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-sm btn-success">Reactivate</button>
+                                                </form>
+                                            }
+
+                                            <form asp-action="Delete" asp-route-id="@user.Id" method="post" style="display: inline;" onsubmit="return confirm('Are you sure you want to permanently delete this user? This action cannot be undone.');">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center">No users found matching your criteria.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            @if (Model.TotalPages > 1)
+            {
+                <nav aria-label="User list pagination">
+                    <ul class="pagination justify-content-center">
+                        <!-- First Page -->
+                        <li class="page-item @(!Model.HasPreviousPage ? "disabled" : "")">
+                            <a class="page-link" href="@GetPageUrl(1)">First</a>
+                        </li>
+
+                        <!-- Previous Page -->
+                        <li class="page-item @(!Model.HasPreviousPage ? "disabled" : "")">
+                            <a class="page-link" href="@GetPageUrl(Model.CurrentPage - 1)">Previous</a>
+                        </li>
+
+                        <!-- Page Numbers -->
+                        @for (int i = Math.Max(1, Model.CurrentPage - 2); i <= Math.Min(Model.TotalPages, Model.CurrentPage + 2); i++)
+                        {
+                            <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                                <a class="page-link" href="@GetPageUrl(i)">@i</a>
+                            </li>
+                        }
+
+                        <!-- Next Page -->
+                        <li class="page-item @(!Model.HasNextPage ? "disabled" : "")">
+                            <a class="page-link" href="@GetPageUrl(Model.CurrentPage + 1)">Next</a>
+                        </li>
+
+                        <!-- Last Page -->
+                        <li class="page-item @(!Model.HasNextPage ? "disabled" : "")">
+                            <a class="page-link" href="@GetPageUrl(Model.TotalPages)">Last</a>
+                        </li>
+                    </ul>
+                </nav>
+
+                <div class="text-center text-muted">
+                    Page @Model.CurrentPage of @Model.TotalPages
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('.select2-multiple').select2({
+                theme: 'bootstrap-5',
+                placeholder: 'Select options...',
+                allowClear: true,
+                closeOnSelect: false
+            });
+        });
+    </script>
+}
+
+@functions {
+    string GetSortUrl(string column)
+    {
+        var sortOrder = "asc";
+        if (Model.SortBy == column && Model.SortOrder == "asc")
+        {
+            sortOrder = "desc";
+        }
+
+        return Url.Action("Index", new
+        {
+            searchTerm = Model.SearchTerm,
+            statusFilter = Model.StatusFilter,
+            roleFilter = Model.RoleFilter,
+            departmentFilter = Model.DepartmentFilter,
+            sortBy = column,
+            sortOrder = sortOrder,
+            page = 1,
+            pageSize = Model.PageSize
+        });
+    }
+
+    string GetSortIcon(string column)
+    {
+        if (Model.SortBy != column) return "⇅";
+        return Model.SortOrder == "asc" ? "▲" : "▼";
+    }
+
+    string GetPageUrl(int page)
+    {
+        return Url.Action("Index", new
+        {
+            searchTerm = Model.SearchTerm,
+            statusFilter = Model.StatusFilter,
+            roleFilter = Model.RoleFilter,
+            departmentFilter = Model.DepartmentFilter,
+            sortBy = Model.SortBy,
+            sortOrder = Model.SortOrder,
+            page = page,
+            pageSize = Model.PageSize
+        });
+    }
+}

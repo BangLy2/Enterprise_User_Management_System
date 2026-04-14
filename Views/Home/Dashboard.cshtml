@@ -1,0 +1,966 @@
+﻿@model MyWeb.ViewModels.DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="container mt-4">
+    <h1>Welcome, @Model.Username!</h1>
+
+    <!-- Summary Cards -->
+    <div class="row mt-4">
+        <div class="col-md-4 mb-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-people-fill"></i> Total Users</h5>
+                    <h2>@Model.TotalUsers</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-check-circle-fill"></i> Active Users</h5>
+                    <h2>@Model.ActiveUsers</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-x-circle-fill"></i> Inactive Users</h5>
+                    <h2>@Model.InactiveUsers</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (Model.AllPasswordExpiryWarnings.Any())
+    {
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="alert alert-warning" role="alert">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="alert-heading mb-2">
+                                <i class="bi bi-exclamation-triangle-fill"></i> Password Expiry Warnings
+                            </h5>
+                            <p class="mb-0">The following users have passwords expiring soon or already expired:</p>
+                            <small class="text-muted"><i class="bi bi-info-circle"></i> Note: Admin users are excluded from password expiry.</small>
+                        </div>
+                        <div class="text-end">
+                            <label for="expiryFilter" class="form-label mb-1">Filter by:</label>
+                            <select id="expiryFilter" class="form-select form-select-sm" style="width: 200px;">
+                                <option value="all">All (30 days)</option>
+                                <option value="expired">Expired Only</option>
+                                <option value="3">Expiring in 3 days</option>
+                                <option value="7">Expiring in 7 days</option>
+                                <option value="15" selected>Expiring in 15 days</option>
+                                <option value="30">Expiring in 30 days</option>
+                            </select>
+                            <div class="mt-1">
+                                <small class="text-muted">
+                                    <span id="filteredCount">0</span> / <span id="totalCount">@Model.AllPasswordExpiryWarnings.Count</span> users shown
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0" id="passwordExpiryTable">
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Email</th>
+                                    <th>Full Name</th>
+                                    <th>Status</th>
+                                    <th>Expiry Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var warning in Model.AllPasswordExpiryWarnings)
+                                {
+                                    var isExpired = warning.DaysUntilExpiry < 0;
+                                    <tr class="expiry-row @(isExpired ? "table-danger" : warning.DaysUntilExpiry <= 3 ? "table-danger" : warning.DaysUntilExpiry <= 7 ? "table-warning" : "")"
+                                        data-days="@warning.DaysUntilExpiry">
+                                        <td><strong>@warning.UserName</strong></td>
+                                        <td>@warning.Email</td>
+                                        <td>@warning.FullName</td>
+                                        <td>
+                                            @if (isExpired)
+                                            {
+                                                <span class="badge bg-danger">EXPIRED (@Math.Abs(warning.DaysUntilExpiry) days ago)</span>
+                                            }
+                                            else if (warning.DaysUntilExpiry == 0)
+                                            {
+                                                <span class="badge bg-danger">Expires Today!</span>
+                                            }
+                                            else if (warning.DaysUntilExpiry == 1)
+                                            {
+                                                <span class="badge bg-danger">1 day</span>
+                                            }
+                                            else if (warning.DaysUntilExpiry <= 3)
+                                            {
+                                                <span class="badge bg-danger">@warning.DaysUntilExpiry days</span>
+                                            }
+                                            else if (warning.DaysUntilExpiry <= 7)
+                                            {
+                                                <span class="badge bg-warning text-dark">@warning.DaysUntilExpiry days</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-info">@warning.DaysUntilExpiry days</span>
+                                            }
+                                        </td>
+                                        <td>@warning.ExpiryDate.ToString("MMM dd, yyyy")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="noResultsMessage" class="alert alert-info mt-3" style="display: none;">
+                        <i class="bi bi-info-circle"></i> No users match the selected filter.
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Charts Row 1: Bar Charts -->
+    <div class="row mt-4">
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5><i class="bi bi-people-fill"></i> Users by Role (Bar Chart)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="roleChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5><i class="bi bi-building"></i> Users by Department (Bar Chart)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="departmentChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 2: Pie Charts -->
+    <div class="row mt-4">
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5><i class="bi bi-pie-chart-fill"></i> Role Distribution (Pie Chart)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="rolePieChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-warning text-white">
+                    <h5><i class="bi bi-pie-chart-fill"></i> Department Distribution (Pie Chart)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="departmentPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 3: Line Chart -->
+    <div class="row mt-4">
+        <div class="col-md-12 mb-4">
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5><i class="bi bi-graph-up"></i> User Registration Trend (Last 6 Months)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="registrationLineChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Activity Insights Section -->
+    <div class="row mt-5">
+        <div class="col-md-12">
+            <h2><i class="bi bi-graph-up-arrow"></i> User Activity Insights</h2>
+            <hr />
+        </div>
+    </div>
+
+    <!-- Login Activity Chart -->
+    <div class="row mt-4">
+        <div class="col-md-12 mb-4">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5><i class="bi bi-box-arrow-in-right"></i> Login Activity (Last 30 Days)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="loginActivityChart"></canvas>
+                    <div class="text-center mt-3">
+                        <span class="badge bg-primary">Total Logins: @Model.TotalLoginsLast30Days</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Failed Logins & Recent Activity -->
+    <div class="row mt-4">
+        <!-- Failed Login Attempts -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-danger text-white">
+                    <h5><i class="bi bi-shield-exclamation"></i> Failed Login Attempts (Top 5)</h5>
+                </div>
+                <div class="card-body">
+                    @if (Model.FailedLoginAttempts.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Attempts</th>
+                                        <th>Last Attempt</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var attempt in Model.FailedLoginAttempts)
+                                    {
+                                        <tr class="@(attempt.AttemptCount >= 5 ? "table-danger" : attempt.AttemptCount >= 3 ? "table-warning" : "")">
+                                            <td>
+                                                <strong>@attempt.UserName</strong><br />
+                                                <small class="text-muted"><code>@attempt.IpAddress</code></small>
+                                            </td>
+                                            <td>
+                                                <span class="badge @(attempt.AttemptCount >= 5 ? "bg-danger" : attempt.AttemptCount >= 3 ? "bg-warning text-dark" : "bg-secondary")">
+                                                    @attempt.AttemptCount
+                                                </span>
+                                            </td>
+                                            <td><small>@attempt.AttemptTime.ToString("MMM dd, HH:mm")</small></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-success mb-0">
+                            <i class="bi bi-check-circle"></i> No failed login attempts.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Recently Created Users -->
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h5><i class="bi bi-person-plus"></i> Recently Created Users</h5>
+                </div>
+                <div class="card-body">
+                    @if (Model.RecentlyCreatedUsers.Any())
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Created</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var user in Model.RecentlyCreatedUsers)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <strong>@user.UserName</strong><br />
+                                                <small class="text-muted">@user.Email</small>
+                                            </td>
+                                            <td><small>@user.Date.ToString("MMM dd, HH:mm")</small></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info mb-0">
+                            <i class="bi bi-info-circle"></i> No new users in last 7 days.
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recently Deactivated Users -->
+    @if (Model.RecentlyDeactivatedUsers.Any())
+    {
+        <div class="row mt-4">
+            <div class="col-md-12 mb-4">
+                <div class="card">
+                    <div class="card-header bg-warning text-dark">
+                        <h5><i class="bi bi-person-dash"></i> Recently Deactivated Users</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Email</th>
+                                        <th>Deactivated By</th>
+                                        <th>Deactivated On</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var user in Model.RecentlyDeactivatedUsers)
+                                    {
+                                        <tr>
+                                            <td><strong>@user.UserName</strong></td>
+                                            <td>@user.Email</td>
+                                            <td>@user.PerformedBy</td>
+                                            <td>@user.Date.ToString("MMM dd, yyyy HH:mm")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Quick Links -->
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2 d-md-flex">
+                        @if (User.IsInRole("Admin"))
+                        {
+                            <a asp-controller="UserManagement" asp-action="Index" class="btn btn-primary">
+                                <i class="bi bi-person-gear"></i> Manage Users
+                            </a>
+                            <a asp-controller="RoleManagement" asp-action="Index" class="btn btn-info">
+                                <i class="bi bi-shield-lock"></i> Manage Roles
+                            </a>
+                            <a asp-controller="Audit" asp-action="Index" class="btn btn-warning">
+                                <i class="bi bi-clock-history"></i> View Audit Logs
+                            </a>
+                        }
+                        <a asp-controller="Home" asp-action="Privacy" class="btn btn-secondary">
+                            <i class="bi bi-lock"></i> Privacy Policy
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- User Details Modal -->
+<div class="modal fade" id="userDetailsModal" tabindex="-1" aria-labelledby="userDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userDetailsModalLabel">Users</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <input type="text" id="userSearchInput" class="form-control" placeholder="Search by username, email, full name, or department...">
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <span class="text-muted">
+                            Showing <span id="showingStart">0</span>-<span id="showingEnd">0</span> of <span id="totalUsersCount">0</span> users
+                        </span>
+                    </div>
+                </div>
+
+                <div id="loadingSpinner" class="text-center py-5" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading users...</p>
+                </div>
+
+                <div class="table-responsive" id="userTableContainer">
+                    <table class="table table-hover table-sm" id="userDetailsTable">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Full Name</th>
+                                <th>Email</th>
+                                <th>Department</th>
+                                <th>Status</th>
+                                <th>Roles</th>
+                                <th>Created Date (ET)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userDetailsTableBody">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="noUsersFound" class="alert alert-info" style="display: none;">
+                    <i class="bi bi-info-circle"></i> No users found.
+                </div>
+
+                <!-- Pagination -->
+                <nav aria-label="User list pagination" id="paginationContainer" style="display: none;">
+                    <ul class="pagination justify-content-center" id="paginationList">
+                        <!-- Populated by JavaScript -->
+                    </ul>
+                </nav>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const roleData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RoleDistribution));
+        const deptData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DepartmentDistribution));
+        const regData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.RegistrationTrend));
+        const loginActivityData = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.LoginActivityLast30Days));
+
+        // Color palettes
+        const colors = [
+            'rgba(54, 162, 235, 0.8)',
+            'rgba(255, 99, 132, 0.8)',
+            'rgba(255, 206, 86, 0.8)',
+            'rgba(75, 192, 192, 0.8)',
+            'rgba(153, 102, 255, 0.8)',
+            'rgba(255, 159, 64, 0.8)',
+            'rgba(201, 203, 207, 0.8)',
+            'rgba(255, 105, 180, 0.8)'
+        ];
+
+        const borderColors = [
+            'rgba(54, 162, 235, 1)',
+            'rgba(255, 99, 132, 1)',
+            'rgba(255, 206, 86, 1)',
+            'rgba(75, 192, 192, 1)',
+            'rgba(153, 102, 255, 1)',
+            'rgba(255, 159, 64, 1)',
+            'rgba(201, 203, 207, 1)',
+            'rgba(255, 105, 180, 1)'
+        ];
+
+        // Global variables for pagination
+        let currentFilterType = '';
+        let currentFilterValue = '';
+        let currentPage = 1;
+        let currentSearchTerm = '';
+
+        // Function to show user details modal with server-side pagination
+        function showUserDetails(filterType, filterValue) {
+            currentFilterType = filterType;
+            currentFilterValue = filterValue;
+            currentPage = 1;
+            currentSearchTerm = '';
+
+            // Clear search input
+            document.getElementById('userSearchInput').value = '';
+
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('userDetailsModal'));
+            modal.show();
+
+            // Load first page
+            loadUserPage(1);
+        }
+
+        // Function to load user page from server
+        async function loadUserPage(page) {
+            currentPage = page;
+
+            // Show loading spinner
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('userTableContainer').style.display = 'none';
+            document.getElementById('noUsersFound').style.display = 'none';
+            document.getElementById('paginationContainer').style.display = 'none';
+
+            try {
+                const response = await fetch(`/Home/GetFilteredUsers?filterType=${encodeURIComponent(currentFilterType)}&filterValue=${encodeURIComponent(currentFilterValue)}&page=${page}&pageSize=5&searchTerm=${encodeURIComponent(currentSearchTerm)}`);
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch users');
+                }
+
+                const data = await response.json();
+                displayUserPage(data);
+
+            } catch (error) {
+                console.error('Error loading users:', error);
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('noUsersFound').style.display = 'block';
+                document.getElementById('noUsersFound').innerHTML = '<i class="bi bi-exclamation-triangle"></i> Error loading users. Please try again.';
+            }
+        }
+
+        // Function to display user page
+        function displayUserPage(data) {
+            const tableBody = document.getElementById('userDetailsTableBody');
+            const noUsersFound = document.getElementById('noUsersFound');
+            const modalTitle = document.getElementById('userDetailsModalLabel');
+            const paginationContainer = document.getElementById('paginationContainer');
+            const paginationList = document.getElementById('paginationList');
+
+            // Hide loading spinner
+            document.getElementById('loadingSpinner').style.display = 'none';
+
+            // Update modal title
+            modalTitle.textContent = `Users - ${currentFilterType === 'role' ? 'Role' : 'Department'}: ${currentFilterValue} (${data.totalUsers})`;
+
+            // Update showing count
+            const showingStart = data.totalUsers === 0 ? 0 : (data.currentPage - 1) * data.pageSize + 1;
+            const showingEnd = Math.min(data.currentPage * data.pageSize, data.totalUsers);
+            document.getElementById('showingStart').textContent = showingStart;
+            document.getElementById('showingEnd').textContent = showingEnd;
+            document.getElementById('totalUsersCount').textContent = data.totalUsers;
+
+            if (data.users.length === 0) {
+                tableBody.innerHTML = '';
+                document.getElementById('userTableContainer').style.display = 'none';
+                noUsersFound.style.display = 'block';
+                paginationContainer.style.display = 'none';
+            } else {
+                noUsersFound.style.display = 'none';
+                document.getElementById('userTableContainer').style.display = 'block';
+
+                tableBody.innerHTML = data.users.map(user => `
+                    <tr>
+                        <td>
+                            <a href="/UserManagement/Edit/${user.id}" class="text-decoration-none">
+                                <strong>${user.userName}</strong>
+                            </a>
+                        </td>
+                        <td>${user.fullName || '-'}</td>
+                        <td>${user.email}</td>
+                        <td>${user.department || '-'}</td>
+                        <td>
+                            ${user.isActive
+                                ? '<span class="badge bg-success">Active</span>'
+                                : '<span class="badge bg-danger">Inactive</span>'}
+                        </td>
+                        <td>
+                            ${user.roles.map(role => `<span class="badge bg-secondary">${role}</span>`).join(' ')}
+                        </td>
+                        <td>${user.createdDate}</td>
+                    </tr>
+                `).join('');
+
+                // Build pagination
+                if (data.totalPages > 1) {
+                    paginationContainer.style.display = 'block';
+                    paginationList.innerHTML = buildPagination(data.currentPage, data.totalPages);
+                } else {
+                    paginationContainer.style.display = 'none';
+                }
+            }
+        }
+
+        // Function to build pagination HTML
+        function buildPagination(currentPage, totalPages) {
+            let html = '';
+
+            // Previous button
+            html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                        <a class="page-link" href="#" onclick="loadUserPage(${currentPage - 1}); return false;">Previous</a>
+                     </li>`;
+
+            // Page numbers
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+                    html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                                <a class="page-link" href="#" onclick="loadUserPage(${i}); return false;">${i}</a>
+                             </li>`;
+                } else if (i === currentPage - 3 || i === currentPage + 3) {
+                    html += `<li class="page-item disabled"><a class="page-link" href="#">...</a></li>`;
+                }
+            }
+
+            // Next button
+            html += `<li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                        <a class="page-link" href="#" onclick="loadUserPage(${currentPage + 1}); return false;">Next</a>
+                     </li>`;
+
+            return html;
+        }
+
+        // Search functionality with debounce
+        let searchTimeout;
+        document.getElementById('userSearchInput').addEventListener('input', function(e) {
+            clearTimeout(searchTimeout);
+            currentSearchTerm = e.target.value;
+
+            searchTimeout = setTimeout(() => {
+                loadUserPage(1); // Reset to first page on search
+            }, 500); // Wait 500ms after user stops typing
+        });
+
+        // 1. Role Bar Chart with Click Handler
+        new Chart(document.getElementById('roleChart'), {
+            type: 'bar',
+            data: {
+                labels: Object.keys(roleData),
+                datasets: [{
+                    label: 'Number of Users',
+                    data: Object.values(roleData),
+                    backgroundColor: colors,
+                    borderColor: borderColors,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        const roleName = Object.keys(roleData)[index];
+                        showUserDetails('role', roleName);
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                            precision: 0
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    title: {
+                        display: true,
+                        text: 'User Distribution by Role (Click to view users)',
+                        font: { size: 16 }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            footer: () => 'Click to view users'
+                        }
+                    }
+                }
+            }
+        });
+
+        // 2. Department Bar Chart with Click Handler
+        new Chart(document.getElementById('departmentChart'), {
+            type: 'bar',
+            data: {
+                labels: Object.keys(deptData),
+                datasets: [{
+                    label: 'Number of Users',
+                    data: Object.values(deptData),
+                    backgroundColor: colors,
+                    borderColor: borderColors,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        const deptName = Object.keys(deptData)[index];
+                        showUserDetails('department', deptName);
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                            precision: 0
+                        }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    title: {
+                        display: true,
+                        text: 'User Distribution by Department (Click to view users)',
+                        font: { size: 16 }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            footer: () => 'Click to view users'
+                        }
+                    }
+                }
+            }
+        });
+
+        // 3. Role Pie Chart with Click Handler
+        new Chart(document.getElementById('rolePieChart'), {
+            type: 'pie',
+            data: {
+                labels: Object.keys(roleData),
+                datasets: [{
+                    data: Object.values(roleData),
+                    backgroundColor: colors,
+                    borderColor: borderColors,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        const roleName = Object.keys(roleData)[index];
+                        showUserDetails('role', roleName);
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'right'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Role Distribution (Click to view users)',
+                        font: { size: 16 }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            footer: () => 'Click to view users'
+                        }
+                    }
+                }
+            }
+        });
+
+        // 4. Department Pie Chart with Click Handler
+        new Chart(document.getElementById('departmentPieChart'), {
+            type: 'pie',
+            data: {
+                labels: Object.keys(deptData),
+                datasets: [{
+                    data: Object.values(deptData),
+                    backgroundColor: colors,
+                    borderColor: borderColors,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                        const index = elements[0].index;
+                        const deptName = Object.keys(deptData)[index];
+                        showUserDetails('department', deptName);
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'right'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Department Distribution (Click to view users)',
+                        font: { size: 16 }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            footer: () => 'Click to view users'
+                        }
+                    }
+                }
+            }
+        });
+
+        // 5. Registration Trend Line Chart
+        new Chart(document.getElementById('registrationLineChart'), {
+            type: 'line',
+            data: {
+                labels: Object.keys(regData),
+                datasets: [{
+                    label: 'New User Registrations',
+                    data: Object.values(regData),
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointHoverRadius: 7,
+                    pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                            precision: 0
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    title: {
+                        display: true,
+                        text: 'User Registration Trend (Last 6 Months)',
+                        font: { size: 16 }
+                    }
+                }
+            }
+        });
+
+        // 6. Login Activity Chart
+        new Chart(document.getElementById('loginActivityChart'), {
+            type: 'line',
+            data: {
+                labels: Object.keys(loginActivityData),
+                datasets: [{
+                    label: 'Logins',
+                    data: Object.values(loginActivityData),
+                    borderColor: 'rgba(23, 162, 184, 1)',
+                    backgroundColor: 'rgba(23, 162, 184, 0.2)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: 'rgba(23, 162, 184, 1)',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                            precision: 0
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Daily Login Activity',
+                        font: { size: 16 }
+                    }
+                }
+            }
+        });
+
+        // Password Expiry Filter
+        document.getElementById('expiryFilter').addEventListener('change', function() {
+            const filterValue = this.value;
+            const rows = document.querySelectorAll('.expiry-row');
+            const noResultsMessage = document.getElementById('noResultsMessage');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const days = parseInt(row.getAttribute('data-days'));
+                let shouldShow = false;
+
+                switch(filterValue) {
+                    case 'all':
+                        shouldShow = true;
+                        break;
+                    case 'expired':
+                        shouldShow = days < 0;
+                        break;
+                    case '3':
+                        shouldShow = days >= 0 && days <= 3;
+                        break;
+                    case '7':
+                        shouldShow = days >= 0 && days <= 7;
+                        break;
+                    case '15':
+                        shouldShow = days >= 0 && days <= 15;
+                        break;
+                    case '30':
+                        shouldShow = days >= 0 && days <= 30;
+                        break;
+                }
+
+                if (shouldShow) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            document.getElementById('filteredCount').textContent = visibleCount;
+
+            if (visibleCount === 0) {
+                noResultsMessage.style.display = 'block';
+                document.getElementById('passwordExpiryTable').style.display = 'none';
+            } else {
+                noResultsMessage.style.display = 'none';
+                document.getElementById('passwordExpiryTable').style.display = 'table';
+            }
+        });
+
+        // Initialize filter count on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const initialFilter = document.getElementById('expiryFilter').value;
+            const rows = document.querySelectorAll('.expiry-row');
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const days = parseInt(row.getAttribute('data-days'));
+                if (initialFilter === '15' && days >= 0 && days <= 15) {
+                    visibleCount++;
+                }
+            });
+
+            document.getElementById('filteredCount').textContent = visibleCount;
+        });
+    </script>
+}

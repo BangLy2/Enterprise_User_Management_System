@@ -1,0 +1,237 @@
+﻿@model IEnumerable<MyWeb.Models.AuditLog>
+@{
+    ViewData["Title"] = "Audit Logs";
+}
+
+<div class="container mt-4">
+    <h1>@ViewData["Title"]</h1>
+
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <strong>Total Audit Logs:</strong> @(ViewBag.TotalItems ?? 0)
+
+                @if (!string.IsNullOrEmpty(ViewBag.ActionFilter) || !string.IsNullOrEmpty(ViewBag.UserId))
+                {
+                    <span class="ms-3">
+                        <strong>Active Filters:</strong>
+                        @if (!string.IsNullOrEmpty(ViewBag.ActionFilter))
+                        {
+                            <span class="badge bg-primary">Action: @ViewBag.ActionFilter</span>
+                        }
+                        @if (!string.IsNullOrEmpty(ViewBag.UserId))
+                        {
+                            <span class="badge bg-primary">User ID: @ViewBag.UserId</span>
+                        }
+                        <a href="@Url.Action("Index")" class="btn btn-sm btn-warning ms-2">Clear Filters</a>
+                    </span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h5>System Audit Trail</h5>
+        </div>
+        <div class="card-body">
+            @if (Model != null && Model.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover table-sm">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>User</th>
+                                <th>Action</th>
+                                <th>Entity</th>
+                                <th>Field</th>
+                                <th>Old Value</th>
+                                <th>New Value</th>
+                                <th>IP Address</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var log in Model)
+                            {
+                                var etTime = TimeZoneInfo.ConvertTimeFromUtc(log.Timestamp, TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
+                                var hasOldValue = !string.IsNullOrWhiteSpace(log.OldValue);
+                                var hasNewValue = !string.IsNullOrWhiteSpace(log.NewValue);
+                                var isOldJson = hasOldValue && (log.OldValue.TrimStart().StartsWith("{") || log.OldValue.TrimStart().StartsWith("["));
+                                var isNewJson = hasNewValue && (log.NewValue.TrimStart().StartsWith("{") || log.NewValue.TrimStart().StartsWith("["));
+
+                                <tr>
+                                    <td>@etTime.ToString("MM/dd/yyyy hh:mm:ss tt")</td>
+                                    <td>@(log.UserName ?? "N/A")</td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(log.Action))
+                                        {
+                                            if (log.Action.Contains("Deactivated"))
+                                            {
+                                                <span class="badge bg-warning">@log.Action</span>
+                                            }
+                                            else if (log.Action.Contains("Reactivated"))
+                                            {
+                                                <span class="badge bg-success">@log.Action</span>
+                                            }
+                                            else if (log.Action.Contains("Deleted"))
+                                            {
+                                                <span class="badge bg-danger">@log.Action</span>
+                                            }
+                                            else if (log.Action.Contains("Update"))
+                                            {
+                                                <span class="badge bg-info">@log.Action</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">@log.Action</span>
+                                            }
+                                        }
+                                    </td>
+                                    <td>@(log.EntityType ?? "N/A")</td>
+                                    <td>@(log.FieldName ?? "-")</td>
+                                    <td>
+                                        @if (hasOldValue)
+                                        {
+                                            if (isOldJson)
+                                            {
+                                                <button class="btn btn-sm btn-outline-secondary" type="button"
+                                                        onclick='showJsonModal(@Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(log.OldValue)), "Old Value - @log.FieldName")'>
+                                                    <i class="bi bi-code-square"></i> View JSON
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <code style="font-size: 0.85em;">@log.OldValue</code>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (hasNewValue)
+                                        {
+                                            if (isNewJson)
+                                            {
+                                                <button class="btn btn-sm btn-outline-primary" type="button"
+                                                        onclick='showJsonModal(@Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(log.NewValue)), "New Value - @log.FieldName")'>
+                                                    <i class="bi bi-code-square"></i> View JSON
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <code style="font-size: 0.85em;">@log.NewValue</code>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">-</span>
+                                        }
+                                    </td>
+                                    <td>@(log.IpAddress ?? "N/A")</td>
+                                    <td>@(log.Details ?? "-")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> No audit logs found.
+                </div>
+            }
+
+            @if (ViewBag.TotalPages > 1)
+            {
+                <nav aria-label="Audit log pagination">
+                    <ul class="pagination justify-content-center">
+                        @for (int i = 1; i <= ViewBag.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == ViewBag.CurrentPage ? "active" : "")">
+                                <a class="page-link" asp-action="Index" asp-route-page="@i" asp-route-userId="@ViewBag.UserId" asp-route-actionFilter="@ViewBag.ActionFilter">@i</a>
+                            </li>
+                        }
+                    </ul>
+                </nav>
+            }
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <a asp-controller="UserManagement" asp-action="Index" class="btn btn-secondary">Back to User Management</a>
+    </div>
+</div>
+
+<!-- JSON Modal -->
+<div class="modal fade" id="jsonModal" tabindex="-1" aria-labelledby="jsonModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="jsonModalTitle">JSON Data</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="jsonContent" class="bg-light p-3 border rounded" style="max-height: 500px; overflow-y: auto; font-size: 0.9em;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="copyJson(event)">
+                    <i class="bi bi-clipboard"></i> Copy to Clipboard
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function showJsonModal(jsonString, title) {
+            try {
+                // Parse the JSON string
+                const jsonObj = JSON.parse(jsonString);
+
+                // Format it nicely with indentation
+                const formatted = JSON.stringify(jsonObj, null, 2);
+
+                // Display in the modal
+                document.getElementById('jsonContent').textContent = formatted;
+                document.getElementById('jsonModalTitle').textContent = title;
+
+                // Show the modal
+                const modalElement = document.getElementById('jsonModal');
+                const modal = new bootstrap.Modal(modalElement);
+                modal.show();
+            } catch (e) {
+                console.error('Error parsing JSON:', e);
+                console.error('JSON String:', jsonString);
+                alert('Error displaying JSON: ' + e.message);
+            }
+        }
+
+         function copyJson(event) {
+            const content = document.getElementById('jsonContent').textContent;
+            navigator.clipboard.writeText(content).then(() => {
+                // Change button text temporarily
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-success');
+
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-primary');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                alert('Failed to copy to clipboard. Please try again or copy manually.');
+            });
+        }
+    </script>
+}

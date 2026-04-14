@@ -1,0 +1,294 @@
+﻿@model MyWeb.ViewModels.BulkRoleAssignmentViewModel
+@{
+    ViewData["Title"] = "Bulk Role Assignment";
+}
+
+<div class="container mt-4">
+    <h1><i class="bi bi-shield-check"></i> Bulk Role Assignment</h1>
+    <p class="text-muted">Assign or remove roles for multiple users at once</p>
+    <hr />
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle"></i> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle"></i> @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5>Select Users, Role, and Action</h5>
+                </div>
+                <div class="card-body">
+                    <form asp-action="RoleAssignment" method="post" enctype="multipart/form-data" id="roleAssignmentForm">
+                        @Html.AntiForgeryToken()
+
+                        <div id="manualSelectionSection">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Select Role (for manual selection)</label>
+                                    <select asp-for="RoleToAssign" class="form-select" id="roleSelect">
+                                        <option value="">-- Select a Role --</option>
+                                        @foreach (var role in Model.AvailableRoles)
+                                        {
+                                            <option value="@role">@role</option>
+                                        }
+                                    </select>
+                                    <small class="text-muted">Required for manual selection only</small>
+                                </div>
+
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Action (for manual selection)</label>
+                                    <select asp-for="Action" class="form-select" id="actionSelect">
+                                        <option value="">-- Select Action --</option>
+                                        <option value="Add">Add Role</option>
+                                        <option value="Remove">Remove Role</option>
+                                    </select>
+                                    <small class="text-muted">Required for manual selection only</small>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    Select Users (for manual selection)
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAll()">
+                                        <i class="bi bi-check-square"></i> Select All
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="deselectAll()">
+                                        <i class="bi bi-square"></i> Deselect All
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-info" onclick="filterByRole()">
+                                        <i class="bi bi-funnel"></i> Filter by Selected Role
+                                    </button>
+                                </label>
+
+                                <div class="input-group mb-2">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input type="text" id="searchUsers" class="form-control" placeholder="Search users by name or email...">
+                                </div>
+
+                                <div class="border rounded p-3" style="max-height: 500px; overflow-y: auto;" id="userList">
+                                    @foreach (var user in Model.AvailableUsers)
+                                    {
+                                        <div class="form-check user-item" data-username="@user.UserName.ToLower()" data-email="@user.Email.ToLower()" data-roles="@string.Join(",", user.Roles)">
+                                            <input class="form-check-input user-checkbox" type="checkbox" name="SelectedUserIds" value="@user.Id" id="user_@user.Id">
+                                            <label class="form-check-label w-100" for="user_@user.Id">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <div>
+                                                        <strong>@user.UserName</strong>
+                                                        <br />
+                                                        <small class="text-muted">@user.Email</small>
+                                                        <br />
+                                                        <small class="text-muted">
+                                                            @if (user.Roles.Any())
+                                                            {
+                                                                <span>Roles: </span>
+                                                                @foreach (var role in user.Roles)
+                                                                {
+                                                                    <span class="badge bg-secondary">@role</span>
+                                                                }
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-warning">No roles assigned</span>
+                                                            }
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                            </label>
+                                        </div>
+                                        <hr />
+                                    }
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <span id="selectedCount">0</span> user(s) selected
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+                        <h5>OR Upload File for Bulk Role Assignment</h5>
+                        <p class="text-muted">Upload a CSV or Excel file with username, role, and action columns</p>
+
+                        <div class="mb-3">
+                            <label class="form-label">Select File (CSV or Excel)</label>
+                            <input type="file" name="UserFile" id="userFile" class="form-control" accept=".csv,.xlsx,.xls" />
+                            <small class="form-text text-muted">
+                                File should contain: Username, Role, Action (add/remove)
+                            </small>
+                        </div>
+
+                        <div class="btn-group mb-3" role="group">
+                            <a asp-action="DownloadRoleTemplate" asp-route-format="csv" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-download"></i> Download CSV Template
+                            </a>
+                            <a asp-action="DownloadRoleTemplate" asp-route-format="excel" class="btn btn-sm btn-outline-success">
+                                <i class="bi bi-file-earmark-excel"></i> Download Excel Template
+                            </a>
+                        </div>
+
+                        <div class="alert alert-warning" id="fileSelectedAlert" style="display: none;">
+                            <i class="bi bi-info-circle"></i> <strong>File selected:</strong> Manual selections above will be ignored. The file will be processed instead.
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-shield-check"></i> Apply Role Changes
+                            </button>
+                            <a asp-controller="UserManagement" asp-action="Index" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> Back to User Management
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Handle file upload
+        document.getElementById('userFile').addEventListener('change', function(e) {
+            const hasFile = this.files && this.files.length > 0;
+            const manualSection = document.getElementById('manualSelectionSection');
+            const fileAlert = document.getElementById('fileSelectedAlert');
+
+            if (hasFile) {
+                // Disable manual selection visually
+                manualSection.style.opacity = '0.5';
+                manualSection.style.pointerEvents = 'none';
+                fileAlert.style.display = 'block';
+
+                console.log('File selected:', this.files[0].name);
+            } else {
+                // Enable manual selection
+                manualSection.style.opacity = '1';
+                manualSection.style.pointerEvents = 'auto';
+                fileAlert.style.display = 'none';
+            }
+        });
+
+        // Form validation before submit
+        document.getElementById('roleAssignmentForm').addEventListener('submit', function(e) {
+            const fileInput = document.getElementById('userFile');
+            const hasFile = fileInput.files && fileInput.files.length > 0;
+            const hasSelectedUsers = document.querySelectorAll('.user-checkbox:checked').length > 0;
+            const hasRole = document.getElementById('roleSelect').value !== '';
+            const hasAction = document.getElementById('actionSelect').value !== '';
+
+            if (hasFile) {
+                console.log('Submitting with file:', fileInput.files[0].name);
+                // File mode - allow submission
+                return true;
+            } else {
+                console.log('Submitting with manual selection');
+                // Manual selection mode - validate
+                if (!hasRole || !hasAction) {
+                    e.preventDefault();
+                    alert('Please select a role and action, or upload a file.');
+                    return false;
+                }
+
+                if (!hasSelectedUsers) {
+                    e.preventDefault();
+                    alert('Please select at least one user or upload a file.');
+                    return false;
+                }
+            }
+
+            return true;
+        });
+
+        function selectAll() {
+            document.querySelectorAll('.user-checkbox:not([style*="display: none"])').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            updateSelectedCount();
+        }
+
+        function deselectAll() {
+            document.querySelectorAll('.user-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateSelectedCount();
+        }
+
+        function filterByRole() {
+            const selectedRole = document.querySelector('select[name="RoleToAssign"]').value;
+            const action = document.querySelector('select[name="Action"]').value;
+
+            if (!selectedRole) {
+                alert('Please select a role first');
+                return;
+            }
+
+            if (!action) {
+                alert('Please select an action (Add or Remove) first');
+                return;
+            }
+
+            const userItems = document.querySelectorAll('.user-item');
+            let filteredCount = 0;
+
+            userItems.forEach(item => {
+                const userRoles = item.dataset.roles.split(',');
+                const hasRole = userRoles.includes(selectedRole);
+                const shouldShow = (action === 'Add' && !hasRole) || (action === 'Remove' && hasRole);
+
+                if (shouldShow) {
+                    item.style.display = 'block';
+                    filteredCount++;
+                } else {
+                    item.style.display = 'none';
+                    const checkbox = item.querySelector('.user-checkbox');
+                    if (checkbox) checkbox.checked = false;
+                }
+            });
+
+            updateSelectedCount();
+            alert(`Filtered to ${filteredCount} user(s) based on selected role and action`);
+        }
+
+        // Search functionality
+        document.getElementById('searchUsers').addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const userItems = document.querySelectorAll('.user-item');
+
+            userItems.forEach(item => {
+                const username = item.dataset.username;
+                const email = item.dataset.email;
+
+                if (username.includes(searchTerm) || email.includes(searchTerm)) {
+                    item.style.display = 'block';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+
+        function updateSelectedCount() {
+            const count = document.querySelectorAll('.user-checkbox:checked').length;
+            document.getElementById('selectedCount').textContent = count;
+        }
+
+        document.querySelectorAll('.user-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', updateSelectedCount);
+        });
+
+        updateSelectedCount();
+    </script>
+}

@@ -1,0 +1,145 @@
+﻿
+
+@model MyWeb.ViewModels.EditUserViewModel
+@{
+    ViewData["Title"] = "Edit User";
+}
+
+<div class="container mt-4">
+    <h1>@ViewData["Title"]</h1>
+    <hr />
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5>User Information</h5>
+                </div>
+                <div class="card-body">
+                    <form asp-action="Edit" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="Id" />
+
+                        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="UserName" class="form-label"></label>
+                                <input asp-for="UserName" class="form-control" />
+                                <span asp-validation-for="UserName" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="Email" class="form-label"></label>
+                                <input asp-for="Email" class="form-control" />
+                                <span asp-validation-for="Email" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label asp-for="FullName" class="form-label"></label>
+                                <input asp-for="FullName" class="form-control" />
+                                <span asp-validation-for="FullName" class="text-danger"></span>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Departments</label>
+                                <select name="Departments" class="form-select select2-multiple" multiple>
+                                    @foreach (var dept in Model.AvailableDepartments)
+                                    {
+                                        if (Model.Departments != null && Model.Departments.Contains(dept))
+                                        {
+                                            <option value="@dept" selected>@dept</option>
+                                        }
+                                        else
+                                        {
+                                            <option value="@dept">@dept</option>
+                                        }
+                                    }
+                                </select>
+                                <small class="form-text text-muted">Select one or more departments for this user.</small>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Assign Roles</label>
+                            <select name="selectedRoles" class="form-select select2-multiple" multiple>
+                                @foreach (var role in Model.AvailableRoles)
+                                {
+                                    if (role.IsSelected)
+                                    {
+                                        <option value="@role.RoleName" selected>@role.RoleName</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@role.RoleName">@role.RoleName</option>
+                                    }
+                                }
+                            </select>
+                            @if (!Model.AvailableRoles.Any())
+                            {
+                                <small class="form-text text-muted">No roles available. <a asp-controller="RoleManagement" asp-action="Create">Create roles</a></small>
+                            }
+                            else
+                            {
+                                <small class="form-text text-muted">Select one or more roles for this user.</small>
+                            }
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Current Status</label>
+                            <div>
+                                @if (Model.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-danger">Inactive</span>
+                                }
+                            </div>
+                            <small class="form-text text-muted">Use Activate/Deactivate buttons in user list to change status.</small>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> Save Changes
+                            </button>
+                            <a asp-action="Index" class="btn btn-secondary">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="alert alert-info mt-3">
+                <strong><i class="bi bi-info-circle"></i> Note:</strong> Changes to email will require the user to re-confirm their email address. Role changes are logged in the audit trail.
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        $(document).ready(function() {
+            // Initialize multi-select for roles
+            $('.select2-multiple').select2({
+                theme: 'bootstrap-5',
+                placeholder: 'Select roles...',
+                allowClear: true,
+                closeOnSelect: false
+            });
+
+            // Initialize single select for department with search
+            $('.select2-single').select2({
+                theme: 'bootstrap-5',
+                placeholder: '-- Select Department --',
+                allowClear: true
+            });
+        });
+    </script>
+}
